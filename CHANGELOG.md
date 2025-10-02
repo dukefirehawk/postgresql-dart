@@ -4,6 +4,7 @@
 
 - Upgraded SDK constraints and lints.
 - Supporting more URL-based connection-string parameters (mostly for pool).
+- Optimized `StackTrace` capture [#432](https://github.com/isoos/postgresql-dart/pull/432) by [gmpassos](https://github.com/gmpassos).
 
 ## 3.5.7.
 

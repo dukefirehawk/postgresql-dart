@@ -86,8 +86,11 @@ abstract class _PgSessionBase implements Session {
 
   /// Sends a message to the server and waits for a response [T], gracefully
   /// handling error messages that might come in instead.
-  Future<T> _sendAndWaitForQuery<T extends ServerMessage>(ClientMessage send) {
-    final trace = StackTrace.current;
+  Future<T> _sendAndWaitForQuery<T extends ServerMessage>(
+    ClientMessage send, {
+    StackTrace? stackTrace,
+  }) {
+    final trace = stackTrace ?? StackTrace.current;
 
     return _withResource(() {
       _connection._channel.sink.add(
@@ -193,7 +196,8 @@ abstract class _PgSessionBase implements Session {
   }
 
   Future<_PreparedStatement> _prepare(Object query) async {
-    final trace = Trace.current();
+    final stackTrace = StackTrace.current;
+    final trace = Trace.from(stackTrace);
     final conn = _connection;
     final name = 's/${conn._statementCounter++}';
     final description = InternalQueryDescription.wrap(
@@ -207,6 +211,7 @@ abstract class _PgSessionBase implements Session {
         statementName: name,
         typeOids: description.parameterTypes?.map((e) => e?.oid).toList(),
       ),
+      stackTrace: stackTrace,
     );
 
     return _PreparedStatement(description, name, this, trace);
@@ -710,10 +715,15 @@ class _PreparedStatement extends Statement {
 
   @override
   Future<Result> run(Object? parameters, {Duration? timeout}) async {
+    final stackTrace = StackTrace.current;
+    final trace = Trace.from(stackTrace);
     _session._connection._queryCount++;
     timeout ??= _session._settings.queryTimeout;
     final items = <ResultRow>[];
-    final subscription = bind(parameters).listen(items.add);
+    final subscription = (bind(parameters) as _BoundStatement).listen(
+      items.add,
+      callerTrace: trace,
+    );
     try {
       return await (subscription as _PgResultStreamSubscription)._waitForResult(
         items: items,
@@ -721,7 +731,7 @@ class _PreparedStatement extends Statement {
       );
     } finally {
       await subscription.cancel();
-      await _closePendingPortals();
+      await _closePendingPortals(stackTrace: stackTrace);
     }
   }
 
@@ -741,12 +751,13 @@ class _PreparedStatement extends Statement {
     _portalsToClose!.add(portalName);
   }
 
-  Future<void> _closePendingPortals() async {
+  Future<void> _closePendingPortals({StackTrace? stackTrace}) async {
     final list = _portalsToClose;
     while (list != null && list.isNotEmpty) {
       final portalName = list.removeFirst();
       await _session._sendAndWaitForQuery<CloseCompleteMessage>(
         CloseMessage.portal(portalName),
+        stackTrace: stackTrace,
       );
     }
   }
@@ -764,6 +775,7 @@ class _BoundStatement extends Stream<ResultRow> implements ResultStream {
     Function? onError,
     void Function()? onDone,
     bool? cancelOnError,
+    Trace? callerTrace,
   }) {
     final controller = StreamController<ResultRow>();
 
@@ -774,7 +786,12 @@ class _BoundStatement extends Stream<ResultRow> implements ResultStream {
       onDone: onDone,
       cancelOnError: cancelOnError,
     );
-    return _PgResultStreamSubscription(this, controller, subscription);
+    return _PgResultStreamSubscription(
+      this,
+      controller,
+      subscription,
+      callerTrace: callerTrace,
+    );
   }
 }
 
@@ -803,12 +820,13 @@ class _PgResultStreamSubscription
   _PgResultStreamSubscription(
     _BoundStatement statement,
     this._controller,
-    this._source,
-  ) : session = statement.statement._session,
-      ignoreRows = false,
-      _boundStatement = statement,
-      _parentTrace = statement.statement._trace,
-      _callerTrace = Trace.current() {
+    this._source, {
+    Trace? callerTrace,
+  }) : session = statement.statement._session,
+       ignoreRows = false,
+       _boundStatement = statement,
+       _parentTrace = statement.statement._trace,
+       _callerTrace = callerTrace ?? Trace.current() {
     _scheduleStatement(() async {
       connection._pending = this;
 
@@ -847,9 +865,10 @@ class _PgResultStreamSubscription
     this._controller,
     this._source,
     this.ignoreRows, {
+    Trace? callerTrace,
     void Function()? cleanup,
   }) : _parentTrace = null,
-       _callerTrace = Trace.current() {
+       _callerTrace = callerTrace ?? Trace.current() {
     _scheduleStatement(() async {
       connection._pending = this;
 
