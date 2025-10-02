@@ -1,5 +1,9 @@
 # Changelog
 
+## 3.5.8
+
+- Upgraded SDK constraints and lints.
+
 ## 3.5.7.
 
 - Supporting URL-based connection-string specification in `Connection.openFromUrl` and `Pool.withUrl`. (Note: feature and supported settings is considered experimental.)

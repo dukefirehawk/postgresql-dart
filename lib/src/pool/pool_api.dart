@@ -61,15 +61,13 @@ abstract class Pool<L> implements Session, SessionExecutor {
   factory Pool.withSelector(
     EndpointSelector<L> selector, {
     PoolSettings? settings,
-  }) =>
-      PoolImplementation(selector, settings);
+  }) => PoolImplementation(selector, settings);
 
   /// Creates a connection pool from a fixed list of endpoints.
   factory Pool.withEndpoints(
     List<Endpoint> endpoints, {
     PoolSettings? settings,
-  }) =>
-      PoolImplementation(roundRobinSelector(endpoints), settings);
+  }) => PoolImplementation(roundRobinSelector(endpoints), settings);
 
   /// Creates  a new pool where the endpoint and the settings are encoded as an URL as
   /// `postgresql://[userspec@][hostspec][/dbname][?paramspec]`
@@ -119,8 +117,8 @@ abstract class Pool<L> implements Session, SessionExecutor {
   // TODO: decide whether PgSession.execute and prepare methods should also take locality parameter
 }
 
-typedef EndpointSelector<L> = FutureOr<EndpointSelection> Function(
-    EndpointSelectorContext<L> context);
+typedef EndpointSelector<L> =
+    FutureOr<EndpointSelection> Function(EndpointSelectorContext<L> context);
 
 final class EndpointSelectorContext<L> {
   final L? locality;
@@ -128,16 +126,12 @@ final class EndpointSelectorContext<L> {
   // TODO: expose usage and latency information about endpoints
 
   @internal
-  EndpointSelectorContext({
-    required this.locality,
-  });
+  EndpointSelectorContext({required this.locality});
 }
 
 class EndpointSelection {
   final Endpoint endpoint;
   // TODO: add optional SessionSettings + merge with defaults
 
-  EndpointSelection({
-    required this.endpoint,
-  });
+  EndpointSelection({required this.endpoint});
 }

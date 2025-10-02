@@ -11,12 +11,14 @@ import '../postgres.dart';
   ReplicationMode? replicationMode,
   SecurityContext? securityContext,
   SslMode? sslMode,
-}) parseConnectionString(String connectionString) {
+})
+parseConnectionString(String connectionString) {
   final uri = Uri.parse(connectionString);
 
   if (uri.scheme != 'postgresql' && uri.scheme != 'postgres') {
     throw ArgumentError(
-        'Invalid connection string scheme: ${uri.scheme}. Expected "postgresql" or "postgres".');
+      'Invalid connection string scheme: ${uri.scheme}. Expected "postgresql" or "postgres".',
+    );
   }
 
   final host = uri.host.isEmpty ? 'localhost' : uri.host;
@@ -33,7 +35,7 @@ import '../postgres.dart';
     'connect_timeout',
     'application_name',
     'client_encoding',
-    'replication'
+    'replication',
   };
 
   final params = uri.queryParameters;
@@ -58,7 +60,8 @@ import '../postgres.dart';
         break;
       default:
         throw ArgumentError(
-            'Invalid sslmode value: ${params['sslmode']}. Expected: disable, require, verify-ca, verify-full');
+          'Invalid sslmode value: ${params['sslmode']}. Expected: disable, require, verify-ca, verify-full',
+        );
     }
   }
 
@@ -83,7 +86,8 @@ import '../postgres.dart';
     final timeoutSeconds = int.tryParse(params['connect_timeout']!);
     if (timeoutSeconds == null || timeoutSeconds <= 0) {
       throw ArgumentError(
-          'Invalid connect_timeout value: ${params['connect_timeout']}. Expected positive integer.');
+        'Invalid connect_timeout value: ${params['connect_timeout']}. Expected positive integer.',
+      );
     }
     connectTimeout = Duration(seconds: timeoutSeconds);
   }
@@ -103,7 +107,8 @@ import '../postgres.dart';
         break;
       default:
         throw ArgumentError(
-            'Unsupported client_encoding: ${params['client_encoding']}. Supported: UTF8, LATIN1');
+          'Unsupported client_encoding: ${params['client_encoding']}. Supported: UTF8, LATIN1',
+        );
     }
   }
 
@@ -123,7 +128,8 @@ import '../postgres.dart';
         break;
       default:
         throw ArgumentError(
-            'Invalid replication value: ${params['replication']}. Expected: database, true, physical, false, no_select');
+          'Invalid replication value: ${params['replication']}. Expected: database, true, physical, false, no_select',
+        );
     }
   }
 
@@ -190,7 +196,8 @@ SecurityContext _createSecurityContext({
       context.setTrustedCertificates(caPath);
     } catch (e) {
       throw ArgumentError(
-          'Failed to load SSL CA certificates from $caPath: $e');
+        'Failed to load SSL CA certificates from $caPath: $e',
+      );
     }
   }
 

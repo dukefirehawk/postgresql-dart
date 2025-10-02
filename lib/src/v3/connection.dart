@@ -60,7 +60,8 @@ abstract class _PgSessionBase implements Session {
   void _checkActive() {
     if (_sessionClosed) {
       throw PgException(
-          'Session or transaction has already finished, did you forget to await a statement?');
+        'Session or transaction has already finished, did you forget to await a statement?',
+      );
     } else if (_connection._isClosing) {
       throw PgException('Connection is closing down');
     }
@@ -72,8 +73,10 @@ abstract class _PgSessionBase implements Session {
     _checkActive();
     return _operationLock.withResource(() {
       _checkActive();
-      assert(_connection._pending == null,
-          'Previous operation ${_connection._pending} did not clean up.');
+      assert(
+        _connection._pending == null,
+        'Previous operation ${_connection._pending} did not clean up.',
+      );
 
       return Future(callback).whenComplete(() {
         _connection._pending = null;
@@ -87,13 +90,15 @@ abstract class _PgSessionBase implements Session {
     final trace = StackTrace.current;
 
     return _withResource(() {
-      _connection._channel.sink
-          .add(AggregatedClientMessage([send, const SyncMessage()]));
+      _connection._channel.sink.add(
+        AggregatedClientMessage([send, const SyncMessage()]),
+      );
 
       final wait = _connection._pending = _WaitForMessage<T>(this, trace);
 
       return wait.doneWithOperation.future.then((value) {
-        final effectiveResult = wait.result ??
+        final effectiveResult =
+            wait.result ??
             async.Result.error(StateError('Operation did not complete'), trace);
 
         return effectiveResult.asFuture;
@@ -110,11 +115,13 @@ abstract class _PgSessionBase implements Session {
   void _verifyStateBeforeQuery() {
     if (_connection._isClosing || _sessionClosed) {
       throw PgException(
-          'Attempting to execute query, but connection is not open.');
+        'Attempting to execute query, but connection is not open.',
+      );
     }
     if (this == _connection && _connection._activeTransaction != null) {
       throw PgException(
-          'Attempting to execute query on connection while inside a `runTx` call.');
+        'Attempting to execute query on connection while inside a `runTx` call.',
+      );
     }
   }
 
@@ -140,8 +147,10 @@ abstract class _PgSessionBase implements Session {
     final isSimple = queryMode == QueryMode.simple;
 
     if (isSimple && variables.isNotEmpty) {
-      throw PgException('Parameterized queries are not supported when '
-          'using the Simple Query Protocol');
+      throw PgException(
+        'Parameterized queries are not supported when '
+        'using the Simple Query Protocol',
+      );
     }
 
     if (isSimple || (ignoreRows && variables.isEmpty)) {
@@ -192,11 +201,13 @@ abstract class _PgSessionBase implements Session {
       typeRegistry: _connection._settings.typeRegistry,
     );
 
-    await _sendAndWaitForQuery<ParseCompleteMessage>(ParseMessage(
-      description.transformedSql,
-      statementName: name,
-      typeOids: description.parameterTypes?.map((e) => e?.oid).toList(),
-    ));
+    await _sendAndWaitForQuery<ParseCompleteMessage>(
+      ParseMessage(
+        description.transformedSql,
+        statementName: name,
+        typeOids: description.parameterTypes?.map((e) => e?.oid).toList(),
+      ),
+    );
 
     return _PreparedStatement(description, name, this, trace);
   }
@@ -252,18 +263,22 @@ class PgConnectionImplementation extends _PgSessionBase implements Connection {
       return channel;
     }
     final hash = channel.hashCode.abs().toRadixString(16);
-    return channel.transform(StreamChannelTransformer(
-      StreamTransformer.fromHandlers(
-        handleData: (msg, sink) {
-          print('[$hash][in] $msg');
-          sink.add(msg);
-        },
+    return channel.transform(
+      StreamChannelTransformer(
+        StreamTransformer.fromHandlers(
+          handleData: (msg, sink) {
+            print('[$hash][in] $msg');
+            sink.add(msg);
+          },
+        ),
+        async.StreamSinkTransformer.fromHandlers(
+          handleData: (msg, sink) {
+            print('[$hash][out] $msg');
+            sink.add(msg);
+          },
+        ),
       ),
-      async.StreamSinkTransformer.fromHandlers(handleData: (msg, sink) {
-        print('[$hash][out] $msg');
-        sink.add(msg);
-      }),
-    ));
+    );
   }
 
   static Future<(StreamChannel<Message>, bool)> _connect(
@@ -291,8 +306,11 @@ class PgConnectionImplementation extends _PgSessionBase implements Connection {
           return;
         }
         if (data.length != 1) {
-          sslCompleter.completeError(PgException(
-              'Could not initialize SSL connection, received unknown byte stream.'));
+          sslCompleter.completeError(
+            PgException(
+              'Could not initialize SSL connection, received unknown byte stream.',
+            ),
+          );
           return;
         }
 
@@ -302,8 +320,11 @@ class PgConnectionImplementation extends _PgSessionBase implements Connection {
         if (sslCompleter.isCompleted) {
           return;
         }
-        sslCompleter.completeError(PgException(
-            'Could not initialize SSL connection, connection closed during handshake.'));
+        sslCompleter.completeError(
+          PgException(
+            'Could not initialize SSL connection, connection closed during handshake.',
+          ),
+        );
       },
       onError: (e) {
         if (sslCompleter.isCompleted) {
@@ -344,8 +365,9 @@ class PgConnectionImplementation extends _PgSessionBase implements Connection {
       } else {
         // This server does not support SSL
         throw PgException(
-            'Server does not support SSL, but it was required (default configuration). '
-            'To disable secure connections, use `ConnectionSettings(sslMode: SslMode.disable)`.');
+          'Server does not support SSL, but it was required (default configuration). '
+          'To disable secure connections, use `ConnectionSettings(sslMode: SslMode.disable)`.',
+        );
       }
     } else {
       // We've listened to the stream already and sockets are single-subscription
@@ -357,18 +379,22 @@ class PgConnectionImplementation extends _PgSessionBase implements Connection {
       adaptedStream = adaptedStream.transform(incomingBytesTransformer);
     }
 
-    final outgoingSocket = async.StreamSinkExtensions(socket)
-        .transform<Uint8List>(
-            async.StreamSinkTransformer.fromHandlers(handleDone: (out) {
-      // As per the stream channel's guarantees, closing the sink should close
-      // the channel in both directions.
-      socket.destroy();
-      return out.close();
-    }));
+    final outgoingSocket = async.StreamSinkExtensions(socket).transform<Uint8List>(
+      async.StreamSinkTransformer.fromHandlers(
+        handleDone: (out) {
+          // As per the stream channel's guarantees, closing the sink should close
+          // the channel in both directions.
+          socket.destroy();
+          return out.close();
+        },
+      ),
+    );
 
     return (
-      StreamChannel<List<int>>(adaptedStream, outgoingSocket)
-          .transform(messageTransformer(codecContext)),
+      StreamChannel<List<int>>(
+        adaptedStream,
+        outgoingSocket,
+      ).transform(messageTransformer(codecContext)),
       secure,
     );
   }
@@ -424,28 +450,31 @@ class PgConnectionImplementation extends _PgSessionBase implements Connection {
     required DatabaseInfo databaseInfo,
     required this.info,
   }) : _databaseInfo = databaseInfo {
-    _serverMessages = _channel.stream
-        .listen(_handleMessage, onDone: _socketClosed, onError: (e, s) {
-      _close(
-        true,
-        PgException('Socket error: $e'),
-        socketIsBroken: true,
-      );
-    });
+    _serverMessages = _channel.stream.listen(
+      _handleMessage,
+      onDone: _socketClosed,
+      onError: (e, s) {
+        _close(true, PgException('Socket error: $e'), socketIsBroken: true);
+      },
+    );
   }
 
   Future<void> _startup() {
     return _withResource(() {
-      final result =
-          _pending = _AuthenticationProcedure(this, _channelIsSecure);
+      final result = _pending = _AuthenticationProcedure(
+        this,
+        _channelIsSecure,
+      );
 
-      _channel.sink.add(StartupMessage(
-        database: _endpoint.database,
-        timeZone: _settings.timeZone,
-        username: _endpoint.username,
-        replication: _settings.replicationMode,
-        applicationName: _settings.applicationName,
-      ));
+      _channel.sink.add(
+        StartupMessage(
+          database: _endpoint.database,
+          timeZone: _settings.timeZone,
+          username: _endpoint.username,
+          replication: _settings.replicationMode,
+          applicationName: _settings.applicationName,
+        ),
+      );
 
       return result._done.future.timeout(_settings.connectTimeout);
     });
@@ -455,7 +484,8 @@ class PgConnectionImplementation extends _PgSessionBase implements Connection {
     await _close(
       true,
       PgException(
-          'The underlying socket to Postgres has been closed unexpectedly.'),
+        'The underlying socket to Postgres has been closed unexpectedly.',
+      ),
       socketIsBroken: true,
     );
   }
@@ -482,7 +512,8 @@ class PgConnectionImplementation extends _PgSessionBase implements Connection {
         _channels.deliverNotification(message);
       } else if (message is ErrorResponseMessage) {
         final exception = transformServerException(
-            buildExceptionFromErrorFields(message.fields));
+          buildExceptionFromErrorFields(message.fields),
+        );
 
         // Close the connection in response to fatal errors or if we get them
         // out of nowhere.
@@ -509,8 +540,10 @@ class PgConnectionImplementation extends _PgSessionBase implements Connection {
     Future<R> Function(Session session) fn, {
     SessionSettings? settings,
   }) {
-    final session =
-        _RegularSession(this, ResolvedSessionSettings(settings, _settings));
+    final session = _RegularSession(
+      this,
+      ResolvedSessionSettings(settings, _settings),
+    );
     // Unlike runTx, this doesn't need any locks. An active transaction changes
     // the state of the connection, this method does not. If methods requiring
     // locks are called by [fn], these methods will aquire locks as needed.
@@ -532,8 +565,10 @@ class PgConnectionImplementation extends _PgSessionBase implements Connection {
     return _operationLock.withResource(() async {
       // The transaction has its own _operationLock, which means that it (and
       // only it) can be used to run statements while it's active.
-      final transaction =
-          _connection._activeTransaction = _TransactionSession(this, rsettings);
+      final transaction = _connection._activeTransaction = _TransactionSession(
+        this,
+        rsettings,
+      );
 
       late String beginQuery;
       if (rsettings.shouldExpandBegin) {
@@ -545,10 +580,7 @@ class PgConnectionImplementation extends _PgSessionBase implements Connection {
         beginQuery = 'BEGIN;';
       }
 
-      await transaction.execute(
-        Sql(beginQuery),
-        queryMode: QueryMode.simple,
-      );
+      await transaction.execute(Sql(beginQuery), queryMode: QueryMode.simple);
 
       try {
         final result = await fn(transaction);
@@ -591,8 +623,11 @@ class PgConnectionImplementation extends _PgSessionBase implements Connection {
     await _close(force, ex);
   }
 
-  Future<void> _close(bool interruptRunning, PgException? cause,
-      {bool socketIsBroken = false}) async {
+  Future<void> _close(
+    bool interruptRunning,
+    PgException? cause, {
+    bool socketIsBroken = false,
+  }) async {
     _socketIsBroken = _socketIsBroken || socketIsBroken;
     if (!_isClosing) {
       _isClosing = true;
@@ -618,26 +653,28 @@ class PgConnectionImplementation extends _PgSessionBase implements Connection {
   }
 
   void _closeAfterError([PgException? cause]) {
-    _close(
-      true,
-      cause,
-      socketIsBroken: cause?.willAbortConnection ?? false,
-    );
+    _close(true, cause, socketIsBroken: cause?.willAbortConnection ?? false);
   }
 
   @internal
   Future<void> cancelPendingStatement() async {
-    var (channel, _) =
-        await _connect(_endpoint, _settings, codecContext: codecContext);
+    var (channel, _) = await _connect(
+      _endpoint,
+      _settings,
+      codecContext: codecContext,
+    );
     if (_backendKeyMessage == null) {
       throw PgException(
-          'Unable to cancel pending statement: no backend key available.');
+        'Unable to cancel pending statement: no backend key available.',
+      );
     }
     channel = _debugChannel(channel);
-    channel.sink.add(CancelRequestMessage(
-      processId: _backendKeyMessage!.processId,
-      secretKey: _backendKeyMessage!.secretKey,
-    ));
+    channel.sink.add(
+      CancelRequestMessage(
+        processId: _backendKeyMessage!.processId,
+        secretKey: _backendKeyMessage!.secretKey,
+      ),
+    );
     // Waiting for the server to close connection.
     await channel.stream.listen((_) {}).asFuture();
   }
@@ -663,18 +700,16 @@ class _PreparedStatement extends Statement {
   @override
   ResultStream bind(Object? parameters) {
     return _BoundStatement(
-        this,
-        _description.bindParameters(
-          parameters,
-          ignoreSuperfluous: _session._settings.ignoreSuperfluousParameters,
-        ));
+      this,
+      _description.bindParameters(
+        parameters,
+        ignoreSuperfluous: _session._settings.ignoreSuperfluousParameters,
+      ),
+    );
   }
 
   @override
-  Future<Result> run(
-    Object? parameters, {
-    Duration? timeout,
-  }) async {
+  Future<Result> run(Object? parameters, {Duration? timeout}) async {
     _session._connection._queryCount++;
     timeout ??= _session._settings.queryTimeout;
     final items = <ResultRow>[];
@@ -696,7 +731,8 @@ class _PreparedStatement extends Statement {
     if (!_session._connection._isClosing) {
       await _closePendingPortals();
       await _session._sendAndWaitForQuery<CloseCompleteMessage>(
-          CloseMessage.statement(_name));
+        CloseMessage.statement(_name),
+      );
     }
   }
 
@@ -710,7 +746,8 @@ class _PreparedStatement extends Statement {
     while (list != null && list.isNotEmpty) {
       final portalName = list.removeFirst();
       await _session._sendAndWaitForQuery<CloseCompleteMessage>(
-          CloseMessage.portal(portalName));
+        CloseMessage.portal(portalName),
+      );
     }
   }
 }
@@ -722,13 +759,21 @@ class _BoundStatement extends Stream<ResultRow> implements ResultStream {
   _BoundStatement(this.statement, this.parameters);
 
   @override
-  ResultStreamSubscription listen(void Function(ResultRow event)? onData,
-      {Function? onError, void Function()? onDone, bool? cancelOnError}) {
+  ResultStreamSubscription listen(
+    void Function(ResultRow event)? onData, {
+    Function? onError,
+    void Function()? onDone,
+    bool? cancelOnError,
+  }) {
     final controller = StreamController<ResultRow>();
 
     // ignore: cancel_subscriptions
-    final subscription = controller.stream.listen(onData,
-        onError: onError, onDone: onDone, cancelOnError: cancelOnError);
+    final subscription = controller.stream.listen(
+      onData,
+      onError: onError,
+      onDone: onDone,
+      cancelOnError: cancelOnError,
+    );
     return _PgResultStreamSubscription(this, controller, subscription);
   }
 }
@@ -756,12 +801,14 @@ class _PgResultStreamSubscription
   final Trace _callerTrace;
 
   _PgResultStreamSubscription(
-      _BoundStatement statement, this._controller, this._source)
-      : session = statement.statement._session,
-        ignoreRows = false,
-        _boundStatement = statement,
-        _parentTrace = statement.statement._trace,
-        _callerTrace = Trace.current() {
+    _BoundStatement statement,
+    this._controller,
+    this._source,
+  ) : session = statement.statement._session,
+      ignoreRows = false,
+      _boundStatement = statement,
+      _parentTrace = statement.statement._trace,
+      _callerTrace = Trace.current() {
     _scheduleStatement(() async {
       connection._pending = this;
 
@@ -777,16 +824,18 @@ class _PgResultStreamSubscription
       }
       final encodedValues = await Future.wait(encodedFutures);
 
-      connection._channel.sink.add(AggregatedClientMessage([
-        BindMessage(
-          encodedValues,
-          portalName: _portalName,
-          statementName: statement.statement._name,
-        ),
-        DescribeMessage.portal(portalName: _portalName),
-        ExecuteMessage(_portalName),
-        SyncMessage(),
-      ]));
+      connection._channel.sink.add(
+        AggregatedClientMessage([
+          BindMessage(
+            encodedValues,
+            portalName: _portalName,
+            statementName: statement.statement._name,
+          ),
+          DescribeMessage.portal(portalName: _portalName),
+          ExecuteMessage(_portalName),
+          SyncMessage(),
+        ]),
+      );
 
       await _done.future;
     });
@@ -799,8 +848,8 @@ class _PgResultStreamSubscription
     this._source,
     this.ignoreRows, {
     void Function()? cleanup,
-  })  : _parentTrace = null,
-        _callerTrace = Trace.current() {
+  }) : _parentTrace = null,
+       _callerTrace = Trace.current() {
     _scheduleStatement(() async {
       connection._pending = this;
 
@@ -844,10 +893,10 @@ class _PgResultStreamSubscription
   }
 
   StackTrace _trace() => Chain([
-        Trace.current(1),
-        _callerTrace,
-        if (_parentTrace != null) _parentTrace,
-      ]);
+    Trace.current(1),
+    _callerTrace,
+    if (_parentTrace != null) _parentTrace,
+  ]);
 
   @override
   void handleConnectionClosed(PgException? dueToException) {
@@ -874,8 +923,9 @@ class _PgResultStreamSubscription
           for (final field in message.fieldDescriptions)
             ResultSchemaColumn(
               typeOid: field.typeOid,
-              type: session._connection._settings.typeRegistry
-                  .resolveOid(field.typeOid),
+              type: session._connection._settings.typeRegistry.resolveOid(
+                field.typeOid,
+              ),
               columnName: field.fieldName,
               columnOid: field.columnOid,
               tableOid: field.tableOid,
@@ -1023,27 +1073,25 @@ class _Channels implements Channels {
 
   @override
   Stream<String> operator [](String channel) {
-    return Stream.multi(
-      (newListener) {
-        newListener.onCancel = () => _unsubscribe(channel, newListener);
+    return Stream.multi((newListener) {
+      newListener.onCancel = () => _unsubscribe(channel, newListener);
 
-        final existingListeners =
-            _activeListeners.putIfAbsent(channel, () => []);
-        final needsSubscription = existingListeners.isEmpty;
-        existingListeners.add(newListener);
+      final existingListeners = _activeListeners.putIfAbsent(channel, () => []);
+      final needsSubscription = existingListeners.isEmpty;
+      existingListeners.add(newListener);
 
-        if (needsSubscription) {
-          _subscribe(channel, newListener);
-        }
-      },
-      isBroadcast: true,
-    );
+      if (needsSubscription) {
+        _subscribe(channel, newListener);
+      }
+    }, isBroadcast: true);
   }
 
   void _subscribe(String channel, MultiStreamController firstListener) {
     Future(() async {
-      await _connection.execute(Sql('LISTEN ${_identifier(channel)}'),
-          ignoreRows: true);
+      await _connection.execute(
+        Sql('LISTEN ${_identifier(channel)}'),
+        ignoreRows: true,
+      );
     }).onError<Object>((error, stackTrace) {
       _activeListeners[channel]?.remove(firstListener);
 
@@ -1054,24 +1102,30 @@ class _Channels implements Channels {
   }
 
   Future<void> _unsubscribe(
-      String channel, MultiStreamController listener) async {
+    String channel,
+    MultiStreamController listener,
+  ) async {
     final listeners = _activeListeners[channel]!..remove(listener);
 
     if (listeners.isEmpty) {
       _activeListeners.remove(channel);
 
       // Send unlisten command
-      await _connection.execute(Sql('UNLISTEN ${_identifier(channel)}'),
-          ignoreRows: true);
+      await _connection.execute(
+        Sql('UNLISTEN ${_identifier(channel)}'),
+        ignoreRows: true,
+      );
     }
   }
 
   void deliverNotification(NotificationResponseMessage msg) {
-    _all.add(Notification(
-      processId: msg.processId,
-      channel: msg.channel,
-      payload: msg.payload,
-    ));
+    _all.add(
+      Notification(
+        processId: msg.processId,
+        channel: msg.channel,
+        payload: msg.payload,
+      ),
+    );
     final listeners = _activeListeners[msg.channel] ?? const [];
 
     for (final listener in listeners) {
@@ -1093,10 +1147,13 @@ class _Channels implements Channels {
   @override
   Future<void> notify(String channel, [String? payload]) async {
     final statementCompleter = _notifyStatement ??= Completer<Statement>()
-      ..complete(Future(() async {
-        return _connection.prepare(
-            Sql(r'SELECT pg_notify($1, $2)', types: [Type.text, Type.text]));
-      }));
+      ..complete(
+        Future(() async {
+          return _connection.prepare(
+            Sql(r'SELECT pg_notify($1, $2)', types: [Type.text, Type.text]),
+          );
+        }),
+      );
     final statement = await statementCompleter.future;
 
     await statement.run([channel, payload]);
@@ -1215,8 +1272,10 @@ class _WaitForMessage<T extends ServerMessage> extends _PendingOperation {
       // that it's ready for another message - so we can release the lock.
       doneWithOperation.complete();
     } else {
-      result =
-          async.Result.error(StateError('Unexpected message $message'), trace);
+      result = async.Result.error(
+        StateError('Unexpected message $message'),
+        trace,
+      );
 
       // If we get here, we clearly have a misunderstanding about the
       // protocol or something is very seriously broken. Treat this as a
@@ -1235,10 +1294,12 @@ class _AuthenticationProcedure extends _PendingOperation {
   late PostgresAuthenticator _authenticator;
 
   _AuthenticationProcedure(super.connection, this._hasSecureTransport)
-      : _trace = StackTrace.current;
+    : _trace = StackTrace.current;
 
   void _initializeAuthenticate(
-      AuthenticationMessage message, AuthenticationScheme scheme) {
+    AuthenticationMessage message,
+    AuthenticationScheme scheme,
+  ) {
     final authConnection = PostgresAuthConnection(
       connection._endpoint.username ?? '',
       connection._endpoint.password ?? '',
@@ -1270,7 +1331,9 @@ class _AuthenticationProcedure extends _PendingOperation {
   Future<void> handleMessage(ServerMessage message) async {
     if (message is ErrorResponseMessage) {
       _done.completeError(
-          buildExceptionFromErrorFields(message.fields), _trace);
+        buildExceptionFromErrorFields(message.fields),
+        _trace,
+      );
     } else if (message is AuthenticationMessage) {
       switch (message.type) {
         case AuthenticationMessageType.ok:
